@@ -21,11 +21,36 @@ jobs:
           distribution: 'temurin'
           cache: gradle
           
-      - name: Install NDK
+      - name: Install Android SDK command-line tools and NDK
         run: |
-          cd $ANDROID_SDK_ROOT
-          echo "y" | sdkmanager --install "ndk;29.0.13846066" --channel=0
-          
+          sudo apt-get update
+          sudo apt-get install -y wget unzip
+
+          # Local SDK to avoid relying on runner system paths
+          export ANDROID_SDK_ROOT="$HOME/Android/Sdk"
+          mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools"
+
+          # Download command-line tools and unzip
+          cd "$HOME"
+          wget -q https://dl.google.com/android/repository/commandlinetools-linux-9477386_latest.zip -O cmdline-tools.zip
+          unzip -q cmdline-tools.zip -d "$ANDROID_SDK_ROOT/cmdline-tools"
+
+          # Ensure layout: cmdline-tools/latest/bin/sdkmanager
+          mkdir -p "$ANDROID_SDK_ROOT/cmdline-tools/latest"
+          if [ -d "$ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools" ]; then
+            mv "$ANDROID_SDK_ROOT/cmdline-tools/cmdline-tools"/* "$ANDROID_SDK_ROOT/cmdline-tools/latest/" || true
+          else
+            mv "$ANDROID_SDK_ROOT/cmdline-tools"/* "$ANDROID_SDK_ROOT/cmdline-tools/latest/" || true
+          fi
+
+          # Export env for later steps
+          echo "ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT" >> $GITHUB_ENV
+          echo "PATH=$PATH:$ANDROID_SDK_ROOT/cmdline-tools/latest/bin:$ANDROID_SDK_ROOT/platform-tools" >> $GITHUB_ENV
+
+          # Accept licenses & install components including NDK
+          yes | sdkmanager --sdk_root="$ANDROID_SDK_ROOT" --licenses
+          sdkmanager --sdk_root="$ANDROID_SDK_ROOT" "platform-tools" "platforms;android-33" "build-tools;33.0.2" "ndk;29.0.13846066"
+
       - name: Set NDK environment variable
         run: echo "ANDROID_NDK=$ANDROID_SDK_ROOT/ndk/29.0.13846066" >> $GITHUB_ENV
         
